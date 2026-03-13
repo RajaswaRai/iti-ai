@@ -9,7 +9,7 @@ export const parseFile = async (filePath: string): Promise<string> => {
     } 
 
     if (extension === 'pdf') {
-        // @ts-ignore
+        // @ts-expect-error: pdf-parse/lib/pdf-parse.js lacks type definitions
         const pdf = await import('pdf-parse/lib/pdf-parse.js').then(m => m.default);
         
         const dataBuffer = fs.readFileSync(filePath);
