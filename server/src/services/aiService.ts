@@ -6,10 +6,18 @@ import {
     GEMINI_TEMPERATURE, 
     GEMINI_TOPP 
 } from '../utils/env.js';
+import { getRelevantContext } from './ragService.js';
 import type { ChatMessage } from '../utils/types.js';
 
 export const generateChatResponse = async (userMessage: string, history: ChatMessage[] = []): Promise<string> => {
     try {
+        const context = await getRelevantContext(userMessage);
+
+        const dynamicInstruction = `${GEMINI_INSTRUCT}\n\n
+        GUNAKAN INFORMASI BERIKUT UNTUK MENJAWAB (KONTEKS KAMPUS):
+        ${context}\n\n
+        Jika pertanyaan user tidak ada hubungannya dengan konteks di atas, jawablah secara umum namun tetap sopan sebagai asisten ITI.`;
+        
         const chatContents = [
             ...history,
             { role: 'user', parts: [{ text: userMessage }] }
@@ -19,7 +27,7 @@ export const generateChatResponse = async (userMessage: string, history: ChatMes
             model: GEMINI_MODEL,
             contents: chatContents,
             config: {
-                systemInstruction: GEMINI_INSTRUCT,
+                systemInstruction: dynamicInstruction,
                 maxOutputTokens: GEMINI_MAX_RES,
                 temperature: GEMINI_TEMPERATURE,
                 topP: GEMINI_TOPP,
