@@ -2,7 +2,7 @@ paths:
   /api/chat:
     post:
       summary: Kirim pesan ke ITI AI Assistant
-      description: Endpoint untuk berinteraksi dengan chatbot AI, mendukung fitur percakapan berlanjut (history).
+      description: Endpoint untuk berinteraksi dengan chatbot AI, mendukung fitur percakapan berlanjut (history) dan dilengkapi dengan validasi input.
       requestBody:
         required: true
         content:
@@ -14,11 +14,19 @@ paths:
               properties:
                 message:
                   type: string
-                  example: "Apa saja syarat kelulusan di ITI?"
+                  maxLength: 1000
+                  description: Pesan dari pengguna (tidak boleh kosong atau spasi saja).
+                  example: "Siapa rektor ITI saat ini?"
                 history:
                   type: array
-                  description: Array riwayat percakapan sebelumnya (kosongkan jika chat baru)
-                  example: []
+                  description: Array riwayat percakapan sebelumnya (kosongkan [] jika chat baru).
+                  example: 
+                    - role: "user"
+                      parts: 
+                        - text: "Halo ITI!"
+                    - role: "model"
+                      parts: 
+                        - text: "Halo! Ada yang bisa saya bantu mengenai Institut Teknologi Indonesia?"
                   items:
                     type: object
                     properties:
@@ -34,7 +42,7 @@ paths:
                               type: string
       responses:
         '200':
-          description: Berhasil mendapatkan balasan dari AI beserta riwayat chat terbaru
+          description: Berhasil mendapatkan balasan dari AI beserta riwayat chat terbaru.
           content:
             application/json:
               schema:
@@ -48,10 +56,23 @@ paths:
                     properties:
                       reply:
                         type: string
-                        example: "Syarat kelulusan di ITI meliputi:\n- Menyelesaikan seluruh mata kuliah..."
+                        example: "Rektor Institut Teknologi Indonesia saat ini adalah Dr. Ir. Marzan Aziz Iskandar, IPU., ASEAN Eng."
                       updatedHistory:
                         type: array
-                        description: Riwayat chat yang sudah ditambahkan dengan pertanyaan user dan jawaban AI saat ini.
+                        description: Riwayat obrolan lengkap yang sudah ditambahkan dengan chat terbaru.
+                        example:
+                          - role: "user"
+                            parts: 
+                              - text: "Halo ITI!"
+                          - role: "model"
+                            parts: 
+                              - text: "Halo! Ada yang bisa saya bantu mengenai Institut Teknologi Indonesia?"
+                          - role: "user"
+                            parts: 
+                              - text: "Siapa rektor ITI saat ini?"
+                          - role: "model"
+                            parts: 
+                              - text: "Rektor Institut Teknologi Indonesia saat ini adalah Dr. Ir. Marzan Aziz Iskandar, IPU., ASEAN Eng."
                         items:
                           type: object
                           properties:
@@ -65,6 +86,28 @@ paths:
                                   text:
                                     type: string
         '400':
-          description: Input tidak valid (contohnya message kosong)
+          description: Input tidak valid (gagal di Middleware)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+                    example: "Pesan (message) wajib diisi dan harus berupa teks."
         '500':
-          description: Terjadi kesalahan internal pada server AI
+          description: Terjadi kesalahan internal pada server (gagal di Controller)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+                    example: "Maaf, terjadi kesalahan internal pada server AI."
