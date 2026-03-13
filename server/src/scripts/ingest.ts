@@ -18,7 +18,7 @@ const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 const runIngestion = async () => {
     try {
         if (!fs.existsSync(DATA_FOLDER)) {
-            console.error("❌ Folder data tidak ditemukan di:", DATA_FOLDER);
+            console.error("Folder data tidak ditemukan di:", DATA_FOLDER);
             return;
         }
 
@@ -26,7 +26,7 @@ const runIngestion = async () => {
         const index = pineconeClient.index(PINECONE_INDEX);
 
         for (const file of files) {
-            console.log(`\n📄 Memproses: ${file}...`);
+            console.log(`\n Memproses: ${file}...`);
             const filePath = path.join(DATA_FOLDER, file);
 
             // Ekstrak teks

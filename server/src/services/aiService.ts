@@ -40,10 +40,10 @@ export const generateChatResponse = async (userMessage: string, history: ChatMes
 `;
         
         const formattedHistory = history.map(msg => {
-            const messageText = msg.content || msg.text || "";
+            const messageText = msg.parts?.[0]?.text || "";
 
             return {
-                role: msg.role === 'assistant' ? 'model' : 'user',
+                role: msg.role,
                 parts: [{ text: messageText }]
             };
         });
