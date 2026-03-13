@@ -1,0 +1,45 @@
+paths:
+  /api/chat:
+    post:
+      summary: Kirim pesan ke ITI AI Assistant
+      description: Endpoint untuk berinteraksi dengan chatbot AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userMessage:
+                  type: string
+                  example: "lokasi iti dimana? dan siapa rektornya sekarang"
+                history:
+                  type: array
+                  example: []
+                  items:
+                    type: object
+                    properties:
+                      role:
+                        type: string
+                      parts:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            text:
+                              type: string
+      responses:
+        '200':
+          description: Berhasil mendapatkan balasan dari AI
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  res:
+                    type: string
+                    example: "Institut Teknologi Indonesia berlokasi di..."
+        '400':
+          description: userMessage tidak dikirim
+        '500':
+          description: Terjadi kesalahan pada server AI
