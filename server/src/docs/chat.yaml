@@ -2,25 +2,29 @@ paths:
   /api/chat:
     post:
       summary: Kirim pesan ke ITI AI Assistant
-      description: Endpoint untuk berinteraksi dengan chatbot AI
+      description: Endpoint untuk berinteraksi dengan chatbot AI, mendukung fitur percakapan berlanjut (history).
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - message
               properties:
-                userMessage:
+                message:
                   type: string
-                  example: "lokasi iti dimana? dan siapa rektornya sekarang"
+                  example: "Apa saja syarat kelulusan di ITI?"
                 history:
                   type: array
+                  description: Array riwayat percakapan sebelumnya (kosongkan jika chat baru)
                   example: []
                   items:
                     type: object
                     properties:
                       role:
                         type: string
+                        enum: [user, model]
                       parts:
                         type: array
                         items:
@@ -30,16 +34,37 @@ paths:
                               type: string
       responses:
         '200':
-          description: Berhasil mendapatkan balasan dari AI
+          description: Berhasil mendapatkan balasan dari AI beserta riwayat chat terbaru
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  res:
-                    type: string
-                    example: "Institut Teknologi Indonesia berlokasi di..."
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      reply:
+                        type: string
+                        example: "Syarat kelulusan di ITI meliputi:\n- Menyelesaikan seluruh mata kuliah..."
+                      updatedHistory:
+                        type: array
+                        description: Riwayat chat yang sudah ditambahkan dengan pertanyaan user dan jawaban AI saat ini.
+                        items:
+                          type: object
+                          properties:
+                            role:
+                              type: string
+                            parts:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  text:
+                                    type: string
         '400':
-          description: userMessage tidak dikirim
+          description: Input tidak valid (contohnya message kosong)
         '500':
-          description: Terjadi kesalahan pada server AI
+          description: Terjadi kesalahan internal pada server AI
