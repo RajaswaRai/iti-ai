@@ -7,15 +7,6 @@ export const handleChat = async (req: Request, res: Response): Promise<void> => 
         // Data dari body request 
         const { message, history } = req.body;
 
-        // Validasi input
-        if (!message || typeof message !== 'string') {
-            res.status(400).json({
-                success: false,
-                error: "Pesan (message) wajib diisi dan harus berupa teks."
-            });
-            return;
-        }
-
         // History
         const chatHistory: ChatMessage[] = Array.isArray(history) ? history : [];
 
