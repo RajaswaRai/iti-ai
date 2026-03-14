@@ -4,6 +4,7 @@ import {
   GEMINI_INSTRUCT,
   GEMINI_TEMPERATURE,
   GEMINI_TOPP,
+  GEMINI_MAX_RES
 } from "../utils/env.js";
 import { getRelevantContext } from "./ragService.js";
 import type { ChatMessage } from "../utils/types.js";
@@ -11,26 +12,37 @@ import type { ChatMessage } from "../utils/types.js";
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-const isRetryableError = (error: any): boolean => {
+// Cek apakah error karena sinyal jelek atau server Google sibuk, agar auto-retry.
+const isRetryableError = (error: unknown): boolean => {
   if (!error) return false;
 
-  const status =
-    (error as any)?.status ||
-    (error as any)?.statusCode ||
-    (error as any)?.code;
-  const message = String((error as any)?.message || error);
+  let status: unknown;
+  let message = String(error);
+
+  if (typeof error === "object" && error !== null) {
+    const errObj = error as Record<string, unknown>;
+    
+    // Ambil status dan message
+    status = errObj.status || errObj.statusCode || errObj.code;
+    
+    if (errObj.message) {
+      message = String(errObj.message);
+    }
+  }
 
   const retryStatusCodes = [429, 500, 502, 503, 504];
-  if (typeof status === "number" && retryStatusCodes.includes(status))
+  if (typeof status === "number" && retryStatusCodes.includes(status)) {
     return true;
+  }
 
   // Network/timeout errors
   if (
     /timeout|timed out|ECONNRESET|EAI_AGAIN|ENOTFOUND|ECONNREFUSED/i.test(
       message,
     )
-  )
+  ) {
     return true;
+  }
 
   return false;
 };
@@ -42,18 +54,20 @@ export const generateChatResponse = async (
   const context = await getRelevantContext(userMessage);
 
   const ragPrompt = `
-        [DOKUMEN KAMPUS]
-        ${context || "Tidak ada dokumen relevan."}
+    [DOKUMEN KAMPUS]
+    ${context || "Tidak ada dokumen relevan."}
 
-        [PERTANYAAN USER]
-        ${userMessage}
+    [PERTANYAAN USER]
+    ${userMessage}
 
-        [INSTRUKSI WAJIB]
-        1. Jika pengguna menanyakan DUA hal atau lebih, WAJIB JAWAB SEMUANYA.
-        2. Rangkum jawaban tiap pertanyaan dengan detail tanpa menghilangkan kata kunci penting.
-        3. Langsung ke inti, DILARANG pakai kalimat pembuka/penutup basa-basi.
-        4. PASTIKAN SELURUH KALIMAT SELESAI DENGAN TITIK (.). Jangan terpotong!
-        5. Pastikan memberi pertanyaan kembali mengenai informasi lebih lanjut  supaya percakapan lebih natural`.trim();
+    [INSTRUKSI WAJIB]
+    1. Jawab SANGAT SINGKAT dan berikan poin utamanya saja. 
+    2. JIKA informasi terbagi berdasarkan jenjang/kategori (misal: D3, S1, S2), sebutkan poin utamanya per jenjang tanpa menjabarkan syarat detailnya.
+    3. Jika pengguna menanyakan DUA hal atau lebih, JAWAB SEMUANYA DENGAN SINGKAT.
+    4. Langsung ke inti jawaban, DILARANG menggunakan kalimat pembuka basa-basi.
+    5. WAJIB akhiri respons dengan SATU pertanyaan balik yang menawarkan penjelasan lebih detail (contoh: "Apakah Anda ingin mengetahui syarat dan aturan detailnya untuk jenjang S1 atau S2?").
+    6. PASTIKAN kalimat penutup selesai dengan sempurna menggunakan tanda tanya (?). Jangan sampai terpotong!
+  `.trim();
 
   const formattedHistory = history.map((msg) => ({
     role: msg.role,
@@ -75,7 +89,7 @@ export const generateChatResponse = async (
           systemInstruction: GEMINI_INSTRUCT,
           temperature: GEMINI_TEMPERATURE,
           topP: GEMINI_TOPP,
-          maxOutputTokens: 1700,
+          maxOutputTokens: GEMINI_MAX_RES,
         },
       });
 
@@ -107,6 +121,6 @@ export const generateChatResponse = async (
     }
   }
 
-  // Should never reach here, but Typescript wants a return
+  //
   return "Maaf, saya tidak dapat memberikan jawaban.";
 };
