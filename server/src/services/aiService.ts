@@ -48,11 +48,12 @@ export const generateChatResponse = async (
         [PERTANYAAN USER]
         ${userMessage}
 
-        [INSTRUKSI WAJIB - SUPER IRIT]
-        1. Jika pengguna menanyakan DUA hal atau lebih, WAJIB JAWAB SEMUANYA TAPI SINGKAT.
-        2. Rangkum jawaban tiap pertanyaan maksimal 5 poin singkat saja.
+        [INSTRUKSI WAJIB]
+        1. Jika pengguna menanyakan DUA hal atau lebih, WAJIB JAWAB SEMUANYA.
+        2. Rangkum jawaban tiap pertanyaan dengan detail tanpa menghilangkan kata kunci penting.
         3. Langsung ke inti, DILARANG pakai kalimat pembuka/penutup basa-basi.
-        4. PASTIKAN SELURUH KALIMAT SELESAI DENGAN TITIK (.). Jangan terpotong!`.trim();
+        4. PASTIKAN SELURUH KALIMAT SELESAI DENGAN TITIK (.). Jangan terpotong!
+        5. Pastikan memberi pertanyaan kembali mengenai informasi lebih lanjut  supaya percakapan lebih natural`.trim();
 
   const formattedHistory = history.map((msg) => ({
     role: msg.role,
@@ -74,7 +75,7 @@ export const generateChatResponse = async (
           systemInstruction: GEMINI_INSTRUCT,
           temperature: GEMINI_TEMPERATURE,
           topP: GEMINI_TOPP,
-          maxOutputTokens: 800,
+          maxOutputTokens: 1700,
         },
       });
 

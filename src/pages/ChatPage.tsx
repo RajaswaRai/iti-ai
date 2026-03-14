@@ -41,6 +41,16 @@ function ChatPage() {
     });
   };
 
+  const buildHistoryForRequest = (
+    currentMessages: Message[],
+    newMessage: Message,
+    maxTurns = 3,
+  ) => {
+    const all = [...currentMessages, newMessage];
+    // Keep the last `maxTurns` rounds (user + AI), to keep prompt size reasonable.
+    return all.slice(-maxTurns * 2);
+  };
+
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -61,10 +71,15 @@ function ChatPage() {
     }
 
     try {
-      const aiResponse = await callGeminiAPIWithRetry(userMessage.content, [
-        ...messages,
+      const historyForRequest = buildHistoryForRequest(
+        messages,
         userMessage,
-      ]);
+        3,
+      );
+      const aiResponse = await callGeminiAPIWithRetry(
+        userMessage.content,
+        historyForRequest,
+      );
 
       const aiMessage: Message = {
         id: Date.now() + 1,
