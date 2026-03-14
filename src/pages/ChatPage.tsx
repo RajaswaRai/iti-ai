@@ -61,12 +61,10 @@ function ChatPage() {
     }
 
     try {
-      const fullPrompt =
-        messages
-          .map((m) => `${m.role === "user" ? "User" : "AI"}: ${m.content}`)
-          .join("\n") + `\nUser: ${userMessage.content}`;
-
-      const aiResponse = await callGeminiAPIWithRetry(fullPrompt);
+      const aiResponse = await callGeminiAPIWithRetry(userMessage.content, [
+        ...messages,
+        userMessage,
+      ]);
 
       const aiMessage: Message = {
         id: Date.now() + 1,

@@ -1,59 +1,92 @@
-import { GoogleGenAI } from "@google/genai";
+type FrontendMessage = {
+  role: "user" | "ai";
+  content: string;
+};
 
-const ai = new GoogleGenAI({
-  apiKey: import.meta.env.VITE_GEMINI_API_KEY,
-});
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const isRetryableResponse = (status: number | null): boolean => {
+  if (!status) return false;
+  return [429, 500, 502, 503, 504].includes(status);
+};
+
+const isRetryableError = (error: any): boolean => {
+  if (!error) return false;
+  const message = String(error?.message || error);
+  return /timeout|timed out|ECONNRESET|EAI_AGAIN|ENOTFOUND|ECONNREFUSED/i.test(
+    message,
+  );
+};
 
 async function callGeminiAPIWithRetry(
-  fullPrompt: string,
+  message: string,
+  history: FrontendMessage[] = [],
   retries: number = 3,
-  delay: number = 1000,
+  baseDelayMs: number = 500,
 ) {
+  const payloadHistory = history.map((m) => ({
+    role: m.role === "user" ? "user" : "model",
+    parts: [{ text: m.content }],
+  }));
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: fullPrompt,
-        config: {
-          systemInstruction: `Anda adalah AI Assistant yang selalu menjawab dengan detail dan komprehensif. Berikut panduan menjawab:
-
-1. SELALU berikan jawaban yang DETAIL dan LENGKAP
-2. Jika pertanyaan memerlukan penjelasan panjang, berikan penjelasan yang menyeluruh
-3. Gunakan format Markdown untuk formatting:
-   - **bold** untuk kata kunci important
-   - *italic* untuk penekanan
-   - \`inline code\` untuk kode singkat
-   - \`\`\`language untuk blok kode lengkap
-   - ### Heading untuk subjudul
-   - - atau * untuk list/poin
-   - > untuk kutipan
-4. Jika tidak yakin dengan jawaban, jelaskan ketidakpastian tersebut
-5. Untuk topik teknis, berikan kode contoh jika relevan
-6. Selalu gunakan bahasa Indonesia yang baik dan benar
-7. Jika user bertanya dalam bahasa Indonesia, jawab dalam bahasa Indonesia
-8. Jika ada istilah teknis dalam bahasa Inggris, berikan terjemahan atau penjelasan
-9. Pisahkan jawaban kompleks menjadi beberapa paragraf yang mudah dibaca
-10. Akhiri jawaban dengan menawarkan bantuan lebih jika diperlukan`,
-          temperature: 0.9,
-          // maxOutputTokens: 4096,
-          maxOutputTokens: 2000,
-          topP: 0.95,
-          topK: 40,
-        },
+      const baseUrl = (import.meta.env.VITE_SERVER_URL as string) || "/api";
+      const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, history: payloadHistory }),
       });
-      const aiText = response?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!aiText) return "No response from AI.";
-      return aiText;
+
+      let responseBody: any = null;
+      const contentType = response.headers.get("content-type") || "";
+
+      if (contentType.includes("application/json")) {
+        try {
+          responseBody = await response.json();
+        } catch {
+          // Swallow JSON parse errors (empty/invalid JSON)
+          responseBody = null;
+        }
+      }
+
+      if (!response.ok) {
+        const bodyText =
+          responseBody?.error ||
+          (await response.text()).slice(0, 512) ||
+          "AI request failed";
+        const err = new Error(bodyText);
+        // @ts-expect-error
+        err.status = response.status;
+        throw err;
+      }
+
+      if (!responseBody) {
+        // Unexpected empty response, treat as error so retry logic can run.
+        const err = new Error("AI response was empty or not valid JSON");
+        // @ts-expect-error
+        err.status = response.status;
+        throw err;
+      }
+
+      return responseBody?.data?.reply ?? "";
     } catch (error: any) {
-      if (attempt < retries && error?.message?.includes("503")) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, delay * Math.pow(2, attempt)),
-        );
-      } else {
+      const status = error?.status ?? null;
+      const shouldRetry =
+        attempt < retries &&
+        (isRetryableResponse(status) || isRetryableError(error));
+
+      if (!shouldRetry) {
         throw error;
       }
+
+      const delay = baseDelayMs * 2 ** (attempt - 1);
+      await sleep(delay);
     }
   }
+
+  return "";
 }
 
 export { callGeminiAPIWithRetry };
