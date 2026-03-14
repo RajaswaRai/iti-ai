@@ -10,7 +10,7 @@ export const handleChat = async (req: Request, res: Response): Promise<void> => 
         // History
         const chatHistory: ChatMessage[] = Array.isArray(history) ? history : [];
 
-        console.log(`💬 Pesan masuk: "${message}" | Membawa ${chatHistory.length} history percakapan.`);
+        console.log(`💬Pesan masuk: "${message}" | Membawa ${chatHistory.length} history percakapan.`);
 
         // Proses
         const aiResponse = await generateChatResponse(message, chatHistory);

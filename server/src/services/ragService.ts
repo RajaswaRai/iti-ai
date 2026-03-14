@@ -11,7 +11,7 @@ export const getRelevantContext = async (query: string): Promise<string> => {
         const index = pineconeClient.index(PINECONE_INDEX);
         const searchResponse = await index.query({
             vector: queryEmbedding,
-            topK: 4,        
+            topK: 5,        
             includeMetadata: true
         });
         

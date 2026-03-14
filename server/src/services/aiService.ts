@@ -2,7 +2,6 @@ import { geminiClient } from '../config/geminiAI.js';
 import { 
     GEMINI_MODEL, 
     GEMINI_INSTRUCT, 
-    GEMINI_MAX_RES, 
     GEMINI_TEMPERATURE, 
     GEMINI_TOPP 
 } from '../utils/env.js';
@@ -13,60 +12,47 @@ export const generateChatResponse = async (userMessage: string, history: ChatMes
     try {
         const context = await getRelevantContext(userMessage);
 
-        const dynamicInstruction = `${GEMINI_INSTRUCT}\n\n
-            PERAN:
-            Kamu adalah Asisten AI resmi Institut Teknologi Indonesia (ITI).
-            TUGAS:
-            Memberikan informasi tentang kampus ITI secara jelas, akurat, dan profesional.
-            ATURAN UTAMA:
-            1. Gunakan informasi dari KONTEKS sebagai sumber utama.
-            2. Jangan membuat informasi yang tidak ada di KONTEKS.
-            3. Jika informasi tidak ada di KONTEKS, katakan bahwa kamu tidak mengetahui informasi tersebut.
-            4. Jika pertanyaan tidak terkait ITI, jawab secara umum namun tetap sopan sebagai asisten ITI.
-            FORMAT JAWABAN:
-            - Gunakan bahasa Indonesia yang jelas dan formal.
-            - Jawaban harus **singkat dan langsung ke inti**.
-            - Jika menggunakan list/poin:
-            • Gunakan **maksimal 3–6 poin**
-            • Setiap poin **maksimal 3–6 kata**
-            • Hindari kalimat panjang
-            - Jangan menyebut kata: konteks, RAG, database, sistem.
-            KONTEKS INFORMASI:
-            ${context}
-            INSTRUKSI MENJAWAB:
-            Gunakan informasi di atas untuk menjawab pertanyaan pengguna.
-            Jika informasi tidak tersedia, jawab:
-            "Maaf, saya belum menemukan informasi tersebut pada data yang tersedia."
-`;
-        
-        const formattedHistory = history.map(msg => {
-            const messageText = msg.parts?.[0]?.text || "";
+        const ragPrompt = `
+        [DOKUMEN KAMPUS]
+        ${context || "Tidak ada dokumen relevan."}
 
-            return {
-                role: msg.role,
-                parts: [{ text: messageText }]
-            };
-        });
+        [PERTANYAAN USER]
+        ${userMessage}
 
-        const chatContents = [
-            ...formattedHistory,
-            { role: 'user', parts: [{ text: userMessage }] }
-        ];
+        [INSTRUKSI WAJIB - SUPER IRIT]
+        1. Jika pengguna menanyakan DUA hal atau lebih, WAJIB JAWAB SEMUANYA TAPI SINGKAT.
+        2. Rangkum jawaban tiap pertanyaan maksimal 5 poin singkat saja.
+        3. Langsung ke inti, DILARANG pakai kalimat pembuka/penutup basa-basi.
+        4. PASTIKAN SELURUH KALIMAT SELESAI DENGAN TITIK (.). Jangan terpotong!`.trim();
 
-        const response = await geminiClient.models.generateContent({
+        const formattedHistory = history.map(msg => ({
+            role: msg.role,
+            parts: [{ text: msg.parts?.[0]?.text || "" }]
+        }));
+
+        const responseStream = await geminiClient.models.generateContentStream({
             model: GEMINI_MODEL,
-            contents: chatContents,
+            contents: [
+                ...formattedHistory,
+                { role: 'user', parts: [{ text: ragPrompt }] }
+            ],
             config: {
-                systemInstruction: {
-                    parts: [{ text: dynamicInstruction }]
-                },
-                maxOutputTokens: GEMINI_MAX_RES,
-                temperature: GEMINI_TEMPERATURE,
+                systemInstruction: GEMINI_INSTRUCT,
+                temperature: GEMINI_TEMPERATURE, 
                 topP: GEMINI_TOPP,
             }
         });
 
-        return response.text || "Maaf, saya tidak dapat memberikan jawaban.";
+        // TAMPUNG TEKS
+        let fullResponse = "";
+        
+        for await (const chunk of responseStream) {
+            if (chunk.text) { 
+                fullResponse += chunk.text;
+            }
+        }
+        
+        return fullResponse || "Maaf, saya tidak dapat memberikan jawaban.";
     } catch (error) {
         console.error("Gemini Error:", error);
         throw new Error("Gagal terkoneksi dengan AI.");
