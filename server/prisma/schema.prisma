@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  PENDING
+  ADMIN
+  SUPER_ADMIN
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password_hash String?   // Boleh kosong jika user daftar via Google OAuth
+  name          String
+  role          Role      @default(PENDING)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  refresh_tokens  RefreshToken[]
+  password_resets PasswordReset[]
+}
+
+model RefreshToken {
+  id           String   @id @default(uuid())
+  user_id      String
+  token_hash   String   @unique
+  device_info  String?
+  ip_address   String?
+  expired_at   DateTime
+  created_at   DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model PasswordReset {
+  id           String   @id @default(uuid())
+  user_id      String
+  token_hash   String   @unique
+  expired_at   DateTime
+  used_at      DateTime?
+  created_at   DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+// Tempat menyimpan DNA dokumen pengganti ingest-state.json
+model DocumentKnowledge {
+  id           String   @id @default(uuid())
+  filename     String   @unique
+  chunk_hashes String[] // Array of Hash
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+}

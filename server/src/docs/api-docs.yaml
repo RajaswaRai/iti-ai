@@ -1,0 +1,174 @@
+openapi: 3.0.0
+info:
+  title: ITI AI Assistant API
+  version: 1.0.0
+  description: Dokumentasi lengkap API Chatbot dan Admin Panel.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - bearerAuth: []
+
+paths:
+  /api/admin/knowledge:
+    get:
+      summary: Lihat Daftar Dokumen RAG
+      tags: [Admin Knowledge]
+      responses:
+        '200':
+          description: Berhasil mengambil daftar dokumen
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        filename:
+                          type: string
+                          example: "Kurikulum.xlsx"
+                        created_at:
+                          type: string
+                          example: "2024-05-10T10:00:00Z"
+  /api/auth/login:
+    post:
+      summary: Login Admin
+      tags: [Auth]
+      security: [] # Bebas akses tanpa token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: admin@iti.ac.id
+                password:
+                  type: string
+                  example: admin123
+      responses:
+        '200':
+          description: Sukses mendapatkan Access Token
+  /api/auth/google:
+    post:
+      summary: Login via Google OAuth
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: ID Token dari Google
+      responses:
+        '200':
+          description: Sukses mendapatkan Access Token
+        '400':
+          description: Token Google tidak valid
+
+  /api/auth/refresh:
+    post:
+      summary: Refresh Access Token
+      tags: [Auth]
+      responses:
+        '200':
+          description: Sukses mendapatkan Access Token baru
+        '401':
+          description: Sesi login tidak ditemukan (Cookie kosong)
+        '403':
+          description: Sesi login telah kadaluarsa / di-revoke
+
+  /api/auth/logout:
+    post:
+      summary: Logout Admin
+      tags: [Auth]
+      responses:
+        '200':
+          description: Berhasil logout dan membersihkan cookie
+
+  /api/auth/forgot-password:
+    post:
+      summary: Minta Tautan Reset Kata Sandi
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: "admin@iti.ac.id"
+      responses:
+        '200':
+          description: Tautan reset berhasil dikirim (jika email terdaftar)
+
+  /api/auth/reset-password:
+    post:
+      summary: Simpan Kata Sandi Baru
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: Token dari URL email
+                newPassword:
+                  type: string
+                  description: Minimal 8 karakter
+      responses:
+        '200':
+          description: Kata sandi berhasil diatur ulang
+        '400':
+          description: Token tidak valid atau password kurang dari 8 karakter
+  /api/admin/knowledge/upload:
+    post:
+      summary: Upload Dokumen RAG (PDF/Excel)
+      tags: [Admin Knowledge]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                document:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Dokumen berhasil diproses dan diunggah ke Pinecone
+
+  /api/admin/knowledge/{filename}:
+    delete:
+      summary: Hapus Dokumen RAG
+      tags: [Admin Knowledge]
+      parameters:
+        - in: path
+          name: filename
+          required: true
+          schema:
+            type: string
+          example: "Kurikulum.xlsx"
+      responses:
+        '200':
+          description: Dokumen berhasil dihapus dari Pinecone dan Database

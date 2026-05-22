@@ -7,16 +7,22 @@
     "dev:frontend": "vite",
     "dev:backend": "cd server && npm run dev",
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
-    "build": "tsc -b && vite build",
+    "build:frontend": "tsc -b && vite build",
+    "build:backend": "cd server && npm run build",
+    "build": "npm run build:backend && npm run build:frontend",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "cd server && npm install"
   },
   "dependencies": {
     "@google/genai": "^1.44.0",
+    "@react-oauth/google": "^0.13.5",
     "dotenv": "^17.3.1",
+    "multer": "^2.1.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-markdown": "^10.1.0"
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.15.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

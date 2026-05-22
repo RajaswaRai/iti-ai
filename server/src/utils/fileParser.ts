@@ -12,17 +12,24 @@ export const parseFile = async (filePath: string): Promise<string> => {
 
         // PDF
         if (extension === 'pdf') {
-            // @ts-expect-error: pdf-parse/lib/pdf-parse.js lacks type definitions
-            const pdf = await import('pdf-parse/lib/pdf-parse.js').then(m => m.default);
+            const pdfParse = await import('pdf-parse');
+            const pdf = pdfParse.default || pdfParse;
+            
             const dataBuffer = fs.readFileSync(filePath);
-            const data = await pdf(dataBuffer);
+            
+            const data = await (pdf as any)(dataBuffer);
+            
             return data.text;
         }
 
         // EXCEL & CSV
         if (['xlsx', 'xls', 'csv'].includes(extension)) {
             const xlsx = await import('xlsx');
-            const workbook = xlsx.readFile(filePath);
+            
+            // FIX: Jangan pakai readFile, pakai read buffer agar kompatibel di ES Modules!
+            const fileBuffer = fs.readFileSync(filePath);
+            const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
+            
             let fullText = '';
 
             // Looping semua sheets

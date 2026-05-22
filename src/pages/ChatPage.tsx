@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { callGeminiAPIWithRetry } from "../utils/ai";
 import ReactMarkdown from "react-markdown";
 import "./ChatPage.css";
 
@@ -16,6 +15,9 @@ function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Mengambil URL Backend dari file .env (Vite)
+  const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000/api";
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -43,12 +45,10 @@ function ChatPage() {
 
   const buildHistoryForRequest = (
     currentMessages: Message[],
-    newMessage: Message,
-    maxTurns = 3,
+    maxTurns = 3
   ) => {
-    const all = [...currentMessages, newMessage];
     // Keep the last `maxTurns` rounds (user + AI), to keep prompt size reasonable.
-    return all.slice(-maxTurns * 2);
+    return currentMessages.slice(-maxTurns * 2);
   };
 
   const handleSendMessage = async () => {
@@ -61,6 +61,7 @@ function ChatPage() {
       timestamp: new Date(),
     };
 
+    // Tambahkan pesan user ke layar
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
@@ -71,29 +72,50 @@ function ChatPage() {
     }
 
     try {
-      const historyForRequest = buildHistoryForRequest(
-        messages,
-        userMessage,
-        3,
-      );
-      const aiResponse = await callGeminiAPIWithRetry(
-        userMessage.content,
-        historyForRequest,
-      );
+      // Ambil history percakapan sebelumnya (tidak termasuk pesan yang baru diketik)
+      const rawHistory = buildHistoryForRequest(messages, 3);
+      
+      // Format history sesuai dengan yang diminta oleh Backend Express kita
+      const formattedHistory = rawHistory.map((msg) => ({
+        role: msg.role === "ai" ? "model" : "user",
+        parts: [{ text: msg.content }]
+      }));
+
+      // 🚀 HUBUNGKAN KE BACKEND EXPRESS
+      const response = await fetch(`${SERVER_URL}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: userMessage.content,
+          history: formattedHistory
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Server AI sedang sibuk atau bermasalah.");
+      }
+
+      const responseData = await response.json();
+      
+      // Mengambil balasan dari struktur JSON yang dikirim backend: { success: true, data: { reply: "..." } }
+      const aiResponseText = responseData.data?.reply || "Maaf, tidak ada respons yang valid dari server.";
 
       const aiMessage: Message = {
         id: Date.now() + 1,
         role: "ai",
-        content: aiResponse || "Tidak ada respons dari AI.",
+        content: aiResponseText,
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+      
     } catch (error) {
       const errorMessage: Message = {
         id: Date.now() + 1,
         role: "ai",
-        content: "Maaf, terjadi kesalahan. Silakan coba lagi.",
+        content: "Maaf, terjadi kesalahan saat menghubungi server kampus. Pastikan backend sudah menyala.",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -116,31 +138,17 @@ function ChatPage() {
     }
   };
 
-  const handleNewChat = () => {
-    setMessages([]);
-  };
-
   return (
     <div className="chat-container">
       <div className="app-layout">
-        <aside className="sidebar" aria-label="Navigasi">
-          <button
-            className="new-chat-btn"
-            type="button"
-            onClick={handleNewChat}
-          >
-            + Chat baru
-          </button>
-          <div className="sidebar-divider" />
-          <div className="sidebar-empty">
-            <p className="sidebar-empty-text">
-              Mulai percakapan untuk melihat riwayat di sini.
-            </p>
-          </div>
-        </aside>
+        {/* OPTIONAL: Jika kamu ingin memunculkan kembali sidebar, tinggal uncomment bagian ini */}
+        {/* <aside className="sidebar">
+           <button className="new-chat-btn" onClick={handleClearChat}>+ Chat Baru</button>
+        </aside> */}
 
         <main className="chat-main">
           <div className="chat-frame" role="main" aria-label="Obrolan AI">
+            
             {/* Header */}
             <div className="chat-header">
               <div className="chat-header-left">
@@ -148,19 +156,13 @@ function ChatPage() {
                   🤖
                 </div>
                 <div className="chat-header-info">
-                  <h1>AI Assistant</h1>
-                  <p>Online • Siap membantu</p>
+                  <h1>AI Assistant ITI</h1>
+                  <p>Online • Siap membantu mahasiswa</p>
                 </div>
               </div>
               <div className="chat-header-actions">
-                <button
-                  className="header-btn"
-                  onClick={handleClearChat}
-                  title="Hapus percakapan"
-                  aria-label="Hapus percakapan"
-                  type="button"
-                >
-                  🗑️
+                <button className="header-btn" onClick={handleClearChat} title="Bersihkan Obrolan">
+                  🧹 Bersihkan
                 </button>
               </div>
             </div>
@@ -177,9 +179,10 @@ function ChatPage() {
                     💬
                   </div>
                   <h3>Selamat Datang!</h3>
-                  <p>Tanyakan apapun kepada AI Assistant</p>
+                  <p>Tanyakan informasi akademik apapun kepada AI Assistant ITI</p>
                 </div>
               )}
+              
               {messages.map((message) => (
                 <div
                   key={message.id}
@@ -205,6 +208,7 @@ function ChatPage() {
                   </div>
                 </div>
               ))}
+              
               {isLoading && (
                 <div className="typing-indicator">
                   <div className="message-avatar" aria-hidden="true">
@@ -232,21 +236,12 @@ function ChatPage() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ketik pesan Anda..."
+                  placeholder="Ketik pertanyaan akademik Anda..."
                   disabled={isLoading}
                   rows={1}
                   aria-label="Tulis pesan"
                   autoFocus
                 />
-                <div className="input-actions">
-                  <button
-                    className="input-action-btn"
-                    title="Format bold"
-                    type="button"
-                  >
-                    B
-                  </button>
-                </div>
               </div>
               <button
                 className="chat-send-button"

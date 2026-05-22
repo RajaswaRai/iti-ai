@@ -1,126 +1,103 @@
-import { geminiClient } from "../config/geminiAI.js";
-import {
-  GEMINI_MODEL,
-  GEMINI_INSTRUCT,
-  GEMINI_TEMPERATURE,
-  GEMINI_TOPP,
-  GEMINI_MAX_RES
-} from "../utils/env.js";
+import { AI_PROVIDER } from "../utils/env.js";
 import { getRelevantContext } from "./ragService.js";
 import type { ChatMessage } from "../utils/types.js";
 
-const sleep = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
+// Import Para Adapters
+import { callGemini } from "./providers/geminiAdapter.js";
+import { callGroq } from "./providers/groqAdapter.js";
 
-// Cek apakah error karena sinyal jelek atau server Google sibuk, agar auto-retry.
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 const isRetryableError = (error: unknown): boolean => {
-  if (!error) return false;
+    if (!error) return false;
+    let status: unknown;
+    let message = String(error);
 
-  let status: unknown;
-  let message = String(error);
-
-  if (typeof error === "object" && error !== null) {
-    const errObj = error as Record<string, unknown>;
-    
-    // Ambil status dan message
-    status = errObj.status || errObj.statusCode || errObj.code;
-    
-    if (errObj.message) {
-      message = String(errObj.message);
+    if (typeof error === "object" && error !== null) {
+        const errObj = error as Record<string, unknown>;
+        status = errObj.status || errObj.statusCode || errObj.code;
+        if (errObj.message) message = String(errObj.message);
     }
-  }
 
-  const retryStatusCodes = [429, 500, 502, 503, 504];
-  if (typeof status === "number" && retryStatusCodes.includes(status)) {
-    return true;
-  }
+    const retryStatusCodes = [429, 500, 502, 503, 504];
+    if (typeof status === "number" && retryStatusCodes.includes(status)) return true;
+    if (/timeout|timed out|ECONNRESET|EAI_AGAIN|ENOTFOUND|ECONNREFUSED/i.test(message)) return true;
 
-  // Network/timeout errors
-  if (
-    /timeout|timed out|ECONNRESET|EAI_AGAIN|ENOTFOUND|ECONNREFUSED/i.test(
-      message,
-    )
-  ) {
-    return true;
-  }
+    return false;
+};
 
-  return false;
+// Pemilih Model AI
+const callAIProvider = async (ragPrompt: string, history: ChatMessage[]) => {
+    switch (AI_PROVIDER.toLowerCase()) {
+        case 'groq':
+            return await callGroq(ragPrompt, history);
+        case 'openai':
+            // return await callOpenAI(ragPrompt, history);
+            throw new Error("OpenAI belum diaktifkan");
+        case 'gemini':
+        default:
+            return await callGemini(ragPrompt, history);
+    }
 };
 
 export const generateChatResponse = async (
-  userMessage: string,
-  history: ChatMessage[] = [],
+    userMessage: string,
+    history: ChatMessage[] = [],
 ): Promise<string> => {
-  const context = await getRelevantContext(userMessage);
+    // 1. Ambil Konteks Pinecone (Bebas topK 5 atau lebih)
+    const context = await getRelevantContext(userMessage);
 
-  const ragPrompt = `
-    [DOKUMEN KAMPUS]
-    ${context || "Tidak ada dokumen relevan."}
+    // 🌟 TRIK 1: DIET KONTEKS (Batasi maksimal 15.000 karakter / ~3.500 token)
+    // Jika Pinecone mengembalikan teks yang terlalu panjang, kita potong buntutnya
+    const safeContext = context ? context.substring(0, 15000) : "";
 
-    [PERTANYAAN USER]
-    ${userMessage}
+    // 🌟 TRIK 2: DIET RIWAYAT CHAT
+    // Jangan kirim semua history dari awal, cukup ambil 4 pesan terakhir saja
+    // (Agar AI tetap ingat konteks pembicaraan, tapi tidak menghabiskan token)
+    const recentHistory = history.slice(-4);
 
-    [INSTRUKSI WAJIB]
-    1. Jawab SANGAT SINGKAT dan berikan poin utamanya saja. 
-    2. JIKA informasi terbagi berdasarkan jenjang/kategori (misal: D3, S1, S2), sebutkan poin utamanya per jenjang tanpa menjabarkan syarat detailnya.
-    3. Jika pengguna menanyakan DUA hal atau lebih, JAWAB SEMUANYA DENGAN SINGKAT.
-    4. Langsung ke inti jawaban, DILARANG menggunakan kalimat pembuka basa-basi.
-    5. WAJIB akhiri respons dengan SATU pertanyaan balik yang menawarkan penjelasan lebih detail (contoh: "Apakah Anda ingin mengetahui syarat dan aturan detailnya untuk jenjang S1 atau S2?").
-    6. PASTIKAN kalimat penutup selesai dengan sempurna menggunakan tanda tanya (?). Jangan sampai terpotong!
-  `.trim();
+    // Rakit Prompt menggunakan konteks yang sudah di-diet
+    const ragPrompt = `
+[DOKUMEN KAMPUS]
+${safeContext || "Tidak ada dokumen relevan."}
 
-  const formattedHistory = history.map((msg) => ({
-    role: msg.role,
-    parts: [{ text: msg.parts?.[0]?.text || "" }],
-  }));
+[PERTANYAAN USER]
+${userMessage}
 
-  const maxAttempts = 3;
-  const baseDelayMs = 500;
+[INSTRUKSI WAJIB]
+1. Jawab SANGAT SINGKAT dan berikan poin utamanya saja. 
+2. Langsung ke inti jawaban, DILARANG menggunakan kalimat pembuka basa-basi.
+3. WAJIB akhiri respons dengan SATU pertanyaan balik yang menawarkan penjelasan lebih detail.
+4. PASTIKAN kalimat penutup selesai dengan sempurna menggunakan tanda tanya (?).
+`.trim();
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const responseStream = await geminiClient.models.generateContentStream({
-        model: GEMINI_MODEL,
-        contents: [
-          ...formattedHistory,
-          { role: "user", parts: [{ text: ragPrompt }] },
-        ],
-        config: {
-          systemInstruction: GEMINI_INSTRUCT,
-          temperature: GEMINI_TEMPERATURE,
-          topP: GEMINI_TOPP,
-          maxOutputTokens: GEMINI_MAX_RES,
-        },
-      });
+    const maxAttempts = 3;
+    const baseDelayMs = 2000;
 
-      // TAMPUNG TEKS
-      let fullResponse = "";
+    // Eksekusi dengan Sistem Retry (Gunakan recentHistory, BUKAN history full)
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            console.log(`Menggunakan Provider: ${AI_PROVIDER.toUpperCase()} (Attempt ${attempt})`);
+            
+            // FIX: Lempar recentHistory yang sudah dipotong ke Provider
+            const aiResponse = await callAIProvider(ragPrompt, recentHistory);
+            
+            return aiResponse || "Maaf, saya tidak dapat memberikan jawaban saat ini.";
 
-      for await (const chunk of responseStream) {
-        if (chunk.text) {
-          fullResponse += chunk.text;
+        } catch (error) {
+            const isRetryable = isRetryableError(error);
+            const shouldRetry = attempt < maxAttempts && isRetryable;
+
+            if (!shouldRetry) {
+                console.error(`AI Provider Error (${AI_PROVIDER} - Attempt ${attempt}):`, error);
+                throw new Error("Gagal terkoneksi dengan AI. Server sedang sibuk.");
+            }
+
+            const delayMs = baseDelayMs * 2 ** (attempt - 1);
+            console.warn(`Server AI sibuk, mencoba ulang dalam ${delayMs}ms...`);
+            await sleep(delayMs);
         }
-      }
-
-      return fullResponse || "Maaf, saya tidak dapat memberikan jawaban.";
-    } catch (error) {
-      const isRetryable = isRetryableError(error);
-      const shouldRetry = attempt < maxAttempts && isRetryable;
-
-      if (!shouldRetry) {
-        console.error("Gemini Error:", error);
-        throw new Error("Gagal terkoneksi dengan AI.");
-      }
-
-      const delayMs = baseDelayMs * 2 ** (attempt - 1);
-      console.warn(
-        `Gemini request failed (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms...`,
-        error,
-      );
-      await sleep(delayMs);
     }
-  }
 
-  //
-  return "Maaf, saya tidak dapat memberikan jawaban.";
+    return "Maaf, server AI sedang antrean penuh. Silakan coba beberapa saat lagi.";
 };
