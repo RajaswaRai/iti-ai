@@ -35,7 +35,6 @@ export const uploadKnowledge = async (req: Request, res: Response): Promise<void
         const fileBuffer = file.buffer;
         const index = pineconeClient.index(PINECONE_INDEX);
         
-        console.log(`\n================================`);
         console.log(`Memproses Dokumen: ${originalName}...`);
 
         // Save ke Temp File -> diekstrak Parser
@@ -178,7 +177,7 @@ export const getKnowledgeList = async (req: Request, res: Response): Promise<voi
 
             },
             orderBy: {
-                created_at: 'desc' // Urutkan newest
+                created_at: 'desc'
             }
         });
 

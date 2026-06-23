@@ -44,19 +44,16 @@ export const generateChatResponse = async (
     userMessage: string,
     history: ChatMessage[] = [],
 ): Promise<string> => {
-    // 1. Ambil Konteks Pinecone (Bebas topK 5 atau lebih)
+    // Ambil Konteks Pinecone
     const context = await getRelevantContext(userMessage);
 
-    // 🌟 TRIK 1: DIET KONTEKS (Batasi maksimal 15.000 karakter / ~3.500 token)
-    // Jika Pinecone mengembalikan teks yang terlalu panjang, kita potong buntutnya
+    // Konteks maksimal 15.000 karakter
     const safeContext = context ? context.substring(0, 15000) : "";
 
-    // 🌟 TRIK 2: DIET RIWAYAT CHAT
-    // Jangan kirim semua history dari awal, cukup ambil 4 pesan terakhir saja
-    // (Agar AI tetap ingat konteks pembicaraan, tapi tidak menghabiskan token)
+    // Ambil 4 pesan terakhir saja
     const recentHistory = history.slice(-4);
 
-    // Rakit Prompt menggunakan konteks yang sudah di-diet
+    // Prompt + konteks
     const ragPrompt = `
 [DOKUMEN KAMPUS]
 ${safeContext || "Tidak ada dokumen relevan."}
@@ -74,12 +71,12 @@ ${userMessage}
     const maxAttempts = 3;
     const baseDelayMs = 2000;
 
-    // Eksekusi dengan Sistem Retry (Gunakan recentHistory, BUKAN history full)
+    // Eksekusi + Sistem Retry
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             console.log(`Menggunakan Provider: ${AI_PROVIDER.toUpperCase()} (Attempt ${attempt})`);
             
-            // FIX: Lempar recentHistory yang sudah dipotong ke Provider
+            // Lempar recentHistory yang sudah dipotong ke Provider
             const aiResponse = await callAIProvider(ragPrompt, recentHistory);
             
             return aiResponse || "Maaf, saya tidak dapat memberikan jawaban saat ini.";

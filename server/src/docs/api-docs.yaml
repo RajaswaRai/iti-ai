@@ -2,17 +2,114 @@ openapi: 3.0.0
 info:
   title: ITI AI Assistant API
   version: 1.0.0
-  description: Dokumentasi lengkap API Chatbot dan Admin Panel.
+  description: Dokumentasi lengkap API Chatbot (RAG) dan Admin Panel.
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      
+  # TEMPLATE RESPON STANDAR (Agar tidak menulis berulang-ulang)
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Deskripsi pesan error untuk Frontend."
+          
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operasi berhasil dilakukan."
+
 security:
   - bearerAuth: []
 
 paths:
+  # ==========================================
+  # 1. API CHATBOT (UNTUK MAHASISWA)
+  # ==========================================
+  /api/chat:
+    post:
+      summary: Kirim Pesan ke AI Chatbot
+      tags: [Chatbot AI]
+      security: [] # Bebas akses tanpa token admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  example: "Siapa rektor ITI?"
+                history:
+                  type: array
+                  description: Riwayat obrolan untuk konteks AI
+                  items:
+                    type: object
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, model]
+                      parts:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            text:
+                              type: string
+      responses:
+        '200':
+          description: AI berhasil membalas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      reply:
+                        type: string
+                        example: "Rektor ITI saat ini adalah Dr. Ir. Marzan Aziz Iskandar, IPU."
+                      updatedHistory:
+                        type: array
+                        description: Riwayat baru yang harus disimpan Frontend
+                        items:
+                          type: object
+        '400':
+          description: Pesan kosong
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server AI sibuk / Timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==========================================
+  # 2. API MANAJEMEN PENGETAHUAN (RAG)
+  # ==========================================
   /api/admin/knowledge:
     get:
       summary: Lihat Daftar Dokumen RAG
@@ -39,107 +136,13 @@ paths:
                         created_at:
                           type: string
                           example: "2024-05-10T10:00:00Z"
-  /api/auth/login:
-    post:
-      summary: Login Admin
-      tags: [Auth]
-      security: [] # Bebas akses tanpa token
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  example: admin@iti.ac.id
-                password:
-                  type: string
-                  example: admin123
-      responses:
-        '200':
-          description: Sukses mendapatkan Access Token
-  /api/auth/google:
-    post:
-      summary: Login via Google OAuth
-      tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                token:
-                  type: string
-                  description: ID Token dari Google
-      responses:
-        '200':
-          description: Sukses mendapatkan Access Token
-        '400':
-          description: Token Google tidak valid
-
-  /api/auth/refresh:
-    post:
-      summary: Refresh Access Token
-      tags: [Auth]
-      responses:
-        '200':
-          description: Sukses mendapatkan Access Token baru
         '401':
-          description: Sesi login tidak ditemukan (Cookie kosong)
-        '403':
-          description: Sesi login telah kadaluarsa / di-revoke
+          description: Token tidak ada atau salah
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
-  /api/auth/logout:
-    post:
-      summary: Logout Admin
-      tags: [Auth]
-      responses:
-        '200':
-          description: Berhasil logout dan membersihkan cookie
-
-  /api/auth/forgot-password:
-    post:
-      summary: Minta Tautan Reset Kata Sandi
-      tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  example: "admin@iti.ac.id"
-      responses:
-        '200':
-          description: Tautan reset berhasil dikirim (jika email terdaftar)
-
-  /api/auth/reset-password:
-    post:
-      summary: Simpan Kata Sandi Baru
-      tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                token:
-                  type: string
-                  description: Token dari URL email
-                newPassword:
-                  type: string
-                  description: Minimal 8 karakter
-      responses:
-        '200':
-          description: Kata sandi berhasil diatur ulang
-        '400':
-          description: Token tidak valid atau password kurang dari 8 karakter
   /api/admin/knowledge/upload:
     post:
       summary: Upload Dokumen RAG (PDF/Excel)
@@ -157,6 +160,16 @@ paths:
       responses:
         '200':
           description: Dokumen berhasil diproses dan diunggah ke Pinecone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Format file tidak didukung atau file kosong
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /api/admin/knowledge/{filename}:
     delete:
@@ -171,4 +184,246 @@ paths:
           example: "Kurikulum.xlsx"
       responses:
         '200':
-          description: Dokumen berhasil dihapus dari Pinecone dan Database
+          description: Dokumen berhasil dihapus
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Dokumen tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==========================================
+  # 3. API AUTENTIKASI & KEAMANAN
+  # ==========================================
+  /api/auth/login:
+    post:
+      summary: Login Admin
+      tags: [Auth]
+      security: [] 
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: admin@iti.ac.id
+                password:
+                  type: string
+                  example: admin123
+      responses:
+        '200':
+          description: Login sukses
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Login berhasil"
+                  data:
+                    type: object
+                    properties:
+                      access_token:
+                        type: string
+                      role:
+                        type: string
+                        example: "SUPER_ADMIN"
+                      name:
+                        type: string
+                        example: "John Doe"
+        '401':
+          description: Email atau password salah
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/google:
+    post:
+      summary: Login via Google OAuth
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: ID Token dari Google
+      responses:
+        '200':
+          description: Login Google sukses
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      access_token:
+                        type: string
+                      role:
+                        type: string
+                      name:
+                        type: string
+        '400':
+          description: Token Google tidak valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Status akun masih PENDING (Belum disetujui Super Admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/refresh:
+    post:
+      summary: Refresh Access Token
+      tags: [Auth]
+      security: [] # Mengandalkan HttpOnly Cookie
+      responses:
+        '200':
+          description: Dapat token baru
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      access_token:
+                        type: string
+        '401':
+          description: Cookie tidak ditemukan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Sesi kadaluarsa / di-revoke
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/logout:
+    post:
+      summary: Logout Admin
+      tags: [Auth]
+      security: [] 
+      responses:
+        '200':
+          description: Sesi dihapus
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/auth/forgot-password:
+    post:
+      summary: Minta Tautan Reset Kata Sandi
+      tags: [Auth]
+      security: [] 
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  example: "admin@iti.ac.id"
+      responses:
+        '200':
+          description: Tautan reset berhasil dikirim
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Email kosong
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/reset-password/verify:
+    get:
+      summary: Cek Validitas Token Reset
+      tags: [Auth]
+      security: [] 
+      parameters:
+        - in: query
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Token valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Token kadaluarsa atau salah
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/reset-password:
+    post:
+      summary: Simpan Kata Sandi Baru
+      tags: [Auth]
+      security: [] 
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        '200':
+          description: Password berhasil diubah
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Token invalid / Password kurang dari 8 karakter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

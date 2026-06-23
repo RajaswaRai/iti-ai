@@ -13,6 +13,7 @@ function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [activeFeedback, setActiveFeedback] = useState<{ messageId: number; rating: number; userMessage: string; comment: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -115,7 +116,7 @@ function ChatPage() {
       const errorMessage: Message = {
         id: Date.now() + 1,
         role: "ai",
-        content: "Maaf, terjadi kesalahan saat menghubungi server kampus. Pastikan backend sudah menyala.",
+        content: "Maaf, terjadi kesalahan koneksi ke server. coba lagi nanti.",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -135,6 +136,39 @@ function ChatPage() {
   const handleClearChat = () => {
     if (window.confirm("Apakah Anda yakin ingin menghapus semua percakapan?")) {
       setMessages([]);
+    }
+  };
+
+  const openFeedbackForm = (messageId: number, rating: number) => {
+    const index = messages.findIndex(m => m.id === messageId);
+    let userMessageText = "";
+    if (index > 0 && messages[index - 1].role === "user") {
+       userMessageText = messages[index - 1].content;
+    }
+    setActiveFeedback({ messageId, rating, userMessage: userMessageText, comment: "" });
+  };
+
+  const cancelFeedback = () => setActiveFeedback(null);
+
+  const submitFeedback = async () => {
+    if (!activeFeedback) return;
+    try {
+      await fetch(`${SERVER_URL}/chat/feedback`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messageId: activeFeedback.messageId.toString(),
+          rating: activeFeedback.rating,
+          userMessage: activeFeedback.userMessage,
+          comment: activeFeedback.comment,
+        }),
+      });
+      alert(activeFeedback.rating === 1 ? "Terima kasih atas feedback positifnya!" : "Terima kasih, ulasan Anda akan membantu kami berkembang.");
+      setActiveFeedback(null);
+    } catch (error) {
+      console.error("Gagal mengirim feedback", error);
     }
   };
 
@@ -202,8 +236,46 @@ function ChatPage() {
                     ) : (
                       message.content
                     )}
-                    <div className="message-time">
-                      {formatTime(message.timestamp)}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', borderTop: message.role === 'ai' ? '1px solid rgba(0,0,0,0.05)' : 'none', paddingTop: message.role === 'ai' ? '8px' : '0' }}>
+                      <div className="message-time" style={{ margin: 0, fontSize: '0.75rem', opacity: 0.6 }}>
+                        {formatTime(message.timestamp)}
+                      </div>
+                      
+                      {message.role === "ai" && (
+                        <div className="message-feedback" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button 
+                              onClick={() => openFeedbackForm(message.id, 1)} 
+                              title="Jawaban bagus" 
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.1rem', opacity: 0.5, padding: '4px', borderRadius: '4px', transition: 'all 0.2s ease' }}
+                              onMouseOver={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.background = 'rgba(0,0,0,0.05)'; }}
+                              onMouseOut={(e) => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'transparent'; }}
+                            >👍</button>
+                            <button 
+                              onClick={() => openFeedbackForm(message.id, -1)} 
+                              title="Jawaban buruk" 
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.1rem', opacity: 0.5, padding: '4px', borderRadius: '4px', transition: 'all 0.2s ease' }}
+                              onMouseOver={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.background = 'rgba(0,0,0,0.05)'; }}
+                              onMouseOut={(e) => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'transparent'; }}
+                            >👎</button>
+                          </div>
+                          
+                          {activeFeedback?.messageId === message.id && (
+                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px', background: 'rgba(0,0,0,0.02)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.05)' }}>
+                                <textarea 
+                                  placeholder="Ketik komentar, keluhan, atau saran Anda di sini..." 
+                                  value={activeFeedback.comment}
+                                  onChange={(e) => setActiveFeedback({...activeFeedback, comment: e.target.value})}
+                                  style={{ padding: '8px', borderRadius: '4px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '0.9rem', resize: 'vertical', minHeight: '60px', fontFamily: 'inherit', outline: 'none' }}
+                                />
+                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                   <button onClick={cancelFeedback} style={{ padding: '6px 12px', cursor: 'pointer', background: 'transparent', border: '1px solid rgba(0,0,0,0.1)', borderRadius: '4px', color: '#555' }}>Batal</button>
+                                   <button onClick={submitFeedback} style={{ padding: '6px 12px', cursor: 'pointer', background: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}>Kirim Ulasan</button>
+                                </div>
+                             </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

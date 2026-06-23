@@ -5,7 +5,7 @@ import { verifyJWT, requireRole } from '../middlewares/authMiddleware.js';
 
 const router = Router();
 
-// Simpan file di memori RAM sementara agar cepat diproses
+// Simpan file di memori RAM sementara agar proses cepat
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.use(verifyJWT);

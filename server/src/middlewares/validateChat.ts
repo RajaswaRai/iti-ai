@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import xss from 'xss';
 
 export const validateChat = (req: Request, res: Response, next: NextFunction): void => {
     const { message, history } = req.body;
@@ -9,8 +10,8 @@ export const validateChat = (req: Request, res: Response, next: NextFunction): v
         return;
     }
 
-    // Bersihkan spasi berlebih
-    const trimmedMessage = message.trim();
+    // Bersihkan spasi berlebih & XSS Sanitization
+    const trimmedMessage = xss(message.trim());
 
     // Validasi Pesan Kosong
     if (trimmedMessage.length === 0) {
@@ -33,6 +34,6 @@ export const validateChat = (req: Request, res: Response, next: NextFunction): v
     // Jika semua lolos
     req.body.message = trimmedMessage;
     
-    // Masuk ke controller
+    // Ke controller
     next();
 };
