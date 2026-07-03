@@ -1,0 +1,60 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* ---------------------------------------------------------
+   Design tokens — dipetakan sebagai utility Tailwind custom
+   (misalnya bg-brand-600, text-ink, border-line, dst)
+--------------------------------------------------------- */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+
+  /* Brand blue — dipertahankan dari identitas awal aplikasi */
+  --color-brand-50: #eff5ff;
+  --color-brand-100: #dbe8ff;
+  --color-brand-200: #bfd7ff;
+  --color-brand-400: #4c7ef2;
+  --color-brand-500: #2f66e8;
+  --color-brand-600: #2151d4;
+  --color-brand-700: #1a3fab;
+
+  /* Netral */
+  --color-ink: #0c0f17;
+  --color-ink-muted: #5c6472;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f6f7fb;
+  --color-line: #e4e7ee;
+
+  /* Semantik */
+  --color-success-50: #ecfdf5;
+  --color-success-600: #059669;
+  --color-danger-50: #fef2f2;
+  --color-danger-600: #dc2626;
+  --color-warning-50: #fffbeb;
+  --color-warning-600: #d97706;
+
+  --radius-card: 18px;
+  --radius-control: 12px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Scrollbar tipis untuk area chat/tabel */
+.thin-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: #d3d8e2;
+  border-radius: 999px;
+}

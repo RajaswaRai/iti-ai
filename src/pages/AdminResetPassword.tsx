@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import "./AdminLogin.css";
+import { Ban, Loader2, XCircle, KeyRound } from "lucide-react"; // Ganti emoji pakai Lucide
+import AuthShell from "../components/AuthShell";
+import Field from "../components/Field";
+import Button from "../components/Button";
+import Alert from "../components/Alert";
+import { getErrorMessage } from "../utils/error";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000/api";
 
@@ -16,11 +21,11 @@ function AdminResetPassword() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  // State BARU untuk validasi token di awal
+  // State untuk validasi token di awal
   const [isValidating, setIsValidating] = useState(true);
   const [isTokenValid, setIsTokenValid] = useState(false);
 
-  // 🌟 EFEK BARU: Mengecek token ke backend saat halaman pertama kali dibuka
+  // Mengecek token ke backend saat halaman pertama kali dibuka
   useEffect(() => {
     const checkToken = async () => {
       if (!token) {
@@ -37,7 +42,7 @@ function AdminResetPassword() {
         } else {
           setIsTokenValid(false); // Token sudah mati
         }
-      } catch (error) {
+      } catch {
         setIsTokenValid(false);
       } finally {
         setIsValidating(false);
@@ -67,18 +72,17 @@ function AdminResetPassword() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, newPassword }),
       });
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal mengatur ulang kata sandi.");
 
       setSuccessMsg("Kata sandi berhasil diubah! Mengalihkan ke halaman login...");
-      
+
       setTimeout(() => {
         navigate("/admin/login");
       }, 2000);
-
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) { // FIX: unexpected any jadi unknown
+      setErrorMsg(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -87,88 +91,82 @@ function AdminResetPassword() {
   // 1. KONDISI: Tidak ada token di URL sama sekali
   if (!token) {
     return (
-      <div className="login-container">
-        <div className="login-card" style={{ textAlign: "center" }}>
-          <h2>Akses Ditolak</h2>
-          <p>Tautan tidak valid atau token hilang.</p>
-          <button onClick={() => navigate("/admin/login")} className="login-btn" style={{ marginTop: "1rem" }}>Kembali ke Login</button>
-        </div>
-      </div>
+      <AuthShell 
+        icon={<Ban className="h-7 w-7 text-red-600" />} 
+        title="Akses Ditolak" 
+        subtitle="Tautan tidak valid atau token hilang."
+      >
+        <Button onClick={() => navigate("/admin/login")} className="w-full">
+          Kembali ke Login
+        </Button>
+      </AuthShell>
     );
   }
 
   // 2. KONDISI: Sedang mengecek ke Backend
   if (isValidating) {
     return (
-      <div className="login-container">
-        <div className="login-card" style={{ textAlign: "center" }}>
-          <div className="login-header">
-            <h2>Memeriksa Tautan...</h2>
-            <p>Mohon tunggu sebentar ⏳</p>
-          </div>
+      <AuthShell 
+        icon={<Loader2 className="h-7 w-7 text-teal-600 animate-spin" />} 
+        title="Memeriksa Tautan..." 
+        subtitle="Mohon tunggu sebentar"
+      >
+        <div className="flex justify-center py-2">
+          {/* Ganti animasi spinner lama dengan icon Lucide */}
+          <Loader2 className="h-6 w-6 animate-spin text-teal-500" />
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   // 3. KONDISI: Token sudah dipakai atau lebih dari 15 menit
   if (!isTokenValid) {
     return (
-      <div className="login-container">
-        <div className="login-card" style={{ textAlign: "center" }}>
-          <div className="login-header">
-            <h2 style={{ color: "red" }}>Tautan Kadaluarsa ❌</h2>
-            <p>Tautan reset kata sandi ini sudah tidak berlaku atau telah digunakan.</p>
-          </div>
-          <button onClick={() => navigate("/admin/login")} className="login-btn" style={{ marginTop: "1rem" }}>
-            Kembali ke Login
-          </button>
-        </div>
-      </div>
+      <AuthShell
+        icon={<XCircle className="h-7 w-7 text-red-600" />}
+        title={<span className="text-red-600 font-bold">Tautan Kadaluarsa</span>}
+        subtitle="Tautan reset kata sandi ini sudah tidak berlaku atau telah digunakan."
+      >
+        <Button onClick={() => navigate("/admin/login")} className="w-full mt-2">
+          Kembali ke Login
+        </Button>
+      </AuthShell>
     );
   }
 
   // 4. KONDISI: Token Valid, tampilkan Form Asli
   return (
-    <div className="login-container">
-      <div className="login-card">
-        <div className="login-header">
-          <div className="login-icon">🔐</div>
-          <h2>Buat Sandi Baru</h2>
-          <p>Silakan masukkan kata sandi baru Anda</p>
-        </div>
+    <AuthShell 
+      icon={<KeyRound className="h-7 w-7 text-teal-600" />} 
+      title="Buat Sandi Baru" 
+      subtitle="Silakan masukkan kata sandi baru Anda"
+    >
+      {errorMsg && <Alert tone="error">{errorMsg}</Alert>}
+      {successMsg && <Alert tone="success">{successMsg}</Alert>}
 
-        {errorMsg && <div className="login-error" style={{ color: "red" }}>{errorMsg}</div>}
-        {successMsg && <div className="login-error" style={{ color: "green", borderColor: "green", background: "#f0fdf4" }}>{successMsg}</div>}
+      <form onSubmit={handleResetPassword} className="space-y-4">
+        <Field
+          label="Kata Sandi Baru"
+          type="password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="Minimal 8 karakter"
+          required
+        />
+        <Field
+          label="Konfirmasi Kata Sandi"
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          placeholder="Ulangi sandi baru"
+          required
+        />
 
-        <form onSubmit={handleResetPassword} className="login-form">
-          <div className="input-group">
-            <label>Kata Sandi Baru</label>
-            <input 
-              type="password" 
-              value={newPassword} 
-              onChange={(e) => setNewPassword(e.target.value)} 
-              placeholder="Minimal 8 karakter"
-              required 
-            />
-          </div>
-          <div className="input-group">
-            <label>Konfirmasi Kata Sandi</label>
-            <input 
-              type="password" 
-              value={confirmPassword} 
-              onChange={(e) => setConfirmPassword(e.target.value)} 
-              placeholder="Ulangi sandi baru"
-              required 
-            />
-          </div>
-
-          <button type="submit" className="login-btn" disabled={isLoading || successMsg !== ""}>
-            {isLoading ? "Menyimpan..." : "Simpan Sandi Baru"}
-          </button>
-        </form>
-      </div>
-    </div>
+        <Button type="submit" loading={isLoading} disabled={successMsg !== ""} className="w-full mt-2">
+          {isLoading ? "Menyimpan..." : "Simpan Sandi Baru"}
+        </Button>
+      </form>
+    </AuthShell>
   );
 }
 
