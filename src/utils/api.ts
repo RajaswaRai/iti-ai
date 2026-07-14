@@ -1,7 +1,8 @@
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000/api";
 
 export const fetchWithAuth = async (url: string, options: RequestInit = {}): Promise<Response> => {
-  let token = localStorage.getItem("access_token");
+  // Fix: Menggunakan const karena token tidak pernah diubah
+  const token = localStorage.getItem("access_token");
   
   const headers = new Headers(options.headers || {});
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -22,7 +23,8 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}): Pro
       
       headers.set("Authorization", `Bearer ${data.data.access_token}`);
       response = await fetch(url, { ...options, headers });
-    } catch (error) {
+    } catch { 
+      // Fix: Menghapus variabel 'error' yang tidak digunakan
       localStorage.clear();
       window.location.href = "/admin/login";
     }

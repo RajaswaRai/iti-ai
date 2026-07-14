@@ -1,21 +1,23 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
-import "./AdminLogin.css";
+import { GoogleOAuthProvider, GoogleLogin, type CredentialResponse } from "@react-oauth/google";
+import { ShieldCheck, ArrowLeft } from "lucide-react";
+import AuthShell from "../components/AuthShell";
+import Field from "../components/Field";
+import Button from "../components/Button";
+import Alert from "../components/Alert";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000/api";
 
-function AdminLogin() {
+export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  
-  // State untuk berpindah antara mode Login dan mode Lupa Password
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
-  
+
   const navigate = useNavigate();
 
   const handleManualLogin = async (e: React.FormEvent) => {
@@ -37,8 +39,8 @@ function AdminLogin() {
       localStorage.setItem("admin_role", data.data.role);
       localStorage.setItem("admin_name", data.data.name);
       navigate("/admin/dashboard");
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Terjadi kesalahan sistem");
     } finally {
       setIsLoading(false);
     }
@@ -50,7 +52,7 @@ function AdminLogin() {
       setErrorMsg("Masukkan email Anda terlebih dahulu.");
       return;
     }
-    
+
     setIsLoading(true);
     setErrorMsg("");
     setSuccessMsg("");
@@ -63,16 +65,15 @@ function AdminLogin() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal mengirim permintaan.");
-
       setSuccessMsg(data.message);
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Gagal memproses permintaan");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     setIsLoading(true);
     setErrorMsg("");
     try {
@@ -88,8 +89,8 @@ function AdminLogin() {
       localStorage.setItem("admin_role", data.data.role);
       localStorage.setItem("admin_name", data.data.name);
       navigate("/admin/dashboard");
-    } catch (err: any) {
-      setErrorMsg(err.message);
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : "Google login error");
     } finally {
       setIsLoading(false);
     }
@@ -97,72 +98,80 @@ function AdminLogin() {
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <div className="login-container">
-        <div className="login-card">
-          <div className="login-header">
-            <div className="login-icon">🛡️</div>
-            <h2>{isForgotPasswordMode ? "Lupa Kata Sandi" : "Admin Panel ITI"}</h2>
-            <p>{isForgotPasswordMode ? "Masukkan email untuk reset sandi" : "Sistem Manajemen Knowledge AI"}</p>
-          </div>
+      <AuthShell
+        icon={<ShieldCheck className="h-7 w-7 text-teal-600" />}
+        title={isForgotPasswordMode ? "Lupa Kata Sandi" : "Admin Panel ITI"}
+        subtitle={isForgotPasswordMode ? "Masukkan email untuk reset sandi" : "Sistem Manajemen Knowledge AI"}
+      >
+        {/* Menggunakan komponen Alert */}
+        {errorMsg && <Alert tone="error">{errorMsg}</Alert>}
+        {successMsg && <Alert tone="success">{successMsg}</Alert>}
 
-          {errorMsg && <div className="login-error" style={{ color: "red" }}>{errorMsg}</div>}
-          {successMsg && <div className="login-error" style={{ color: "green", borderColor: "green", background: "#f0fdf4" }}>{successMsg}</div>}
+        {!isForgotPasswordMode ? (
+          <>
+            <form onSubmit={handleManualLogin} className="space-y-4">
+              <Field
+                label="Email Kampus"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@iti.ac.id"
+                required
+              />
+              <Field
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+              />
 
-          {!isForgotPasswordMode ? (
-            <>
-              {/* FORM LOGIN */}
-              <form onSubmit={handleManualLogin} className="login-form">
-                <div className="input-group">
-                  <label>Email Kampus</label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                </div>
-                <div className="input-group">
-                  <label>Password</label>
-                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                </div>
-                
-                <div style={{ textAlign: "right", marginBottom: "1rem" }}>
-                  <button type="button" onClick={() => setIsForgotPasswordMode(true)} style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontSize: "0.85rem" }}>
-                    Lupa Password?
-                  </button>
-                </div>
-
-                <button type="submit" className="login-btn" disabled={isLoading}>
-                  {isLoading ? "Memproses..." : "Masuk"}
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => setIsForgotPasswordMode(true)}
+                  className="text-xs font-semibold text-teal-600 hover:text-teal-700"
+                >
+                  Lupa Password?
                 </button>
-              </form>
-
-              <div className="login-divider"><span>ATAU</span></div>
-
-              <div className="google-btn-wrapper">
-                <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setErrorMsg("Login gagal.")} />
               </div>
-            </>
-          ) : (
-            <>
-              {/* FORM LUPA PASSWORD */}
-              <form onSubmit={handleForgotPassword} className="login-form">
-                <div className="input-group">
-                  <label>Email Terdaftar</label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                </div>
-                
-                <button type="submit" className="login-btn" disabled={isLoading}>
-                  {isLoading ? "Mengirim Email..." : "Kirim Tautan Reset"}
-                </button>
 
-                <div style={{ textAlign: "center", marginTop: "1rem" }}>
-                  <button type="button" onClick={() => setIsForgotPasswordMode(false)} style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: "0.85rem" }}>
-                    Kembali ke Login
-                  </button>
-                </div>
-              </form>
-            </>
-          )}
-        </div>
-      </div>
+              <Button type="submit" loading={isLoading} className="w-full">
+                {isLoading ? "Memproses..." : "Masuk ke Dashboard"}
+              </Button>
+            </form>
+
+            <div className="my-6 flex items-center gap-3 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+              <span className="h-px flex-1 bg-neutral-200" /> ATAU <span className="h-px flex-1 bg-neutral-200" />
+            </div>
+
+            <div className="flex justify-center">
+              <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setErrorMsg("Login gagal.")} />
+            </div>
+          </>
+        ) : (
+          <form onSubmit={handleForgotPassword} className="space-y-4">
+            <Field
+              label="Email Terdaftar"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <Button type="submit" loading={isLoading} className="w-full">
+              {isLoading ? "Mengirim Email..." : "Kirim Tautan Reset"}
+            </Button>
+            <button
+              type="button"
+              onClick={() => setIsForgotPasswordMode(false)}
+              className="flex w-full items-center justify-center gap-2 text-sm font-medium text-neutral-500 hover:text-neutral-900"
+            >
+              <ArrowLeft className="h-4 w-4" /> Kembali ke Login
+            </button>
+          </form>
+        )}
+      </AuthShell>
     </GoogleOAuthProvider>
   );
 }
-
-export default AdminLogin;

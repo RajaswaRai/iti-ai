@@ -4,9 +4,8 @@ import ChatPage from "./pages/ChatPage";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminResetPassword from "./pages/AdminResetPassword";
-import "./App.css";
 
-// FIX: Gunakan React.ReactNode
+//FIX: Gunakan React.ReactNode
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem("access_token");
   if (!token) {

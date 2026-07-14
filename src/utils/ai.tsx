@@ -11,13 +11,20 @@ const isRetryableResponse = (status: number | null): boolean => {
   return [429, 500, 502, 503, 504].includes(status);
 };
 
-const isRetryableError = (error: any): boolean => {
+const isRetryableError = (error: unknown): boolean => {
   if (!error) return false;
-  const message = String(error?.message || error);
+  const message = error instanceof Error ? error.message : String(error);
   return /timeout|timed out|ECONNRESET|EAI_AGAIN|ENOTFOUND|ECONNREFUSED/i.test(
     message,
   );
 };
+
+interface ChatResponse {
+  data?: {
+    reply?: string;
+  };
+  error?: string;
+}
 
 async function callGeminiAPIWithRetry(
   message: string,
@@ -39,7 +46,7 @@ async function callGeminiAPIWithRetry(
         body: JSON.stringify({ message, history: payloadHistory }),
       });
 
-      let responseBody: any = null;
+      let responseBody: ChatResponse | null = null;
       const contentType = response.headers.get("content-type") || "";
 
       if (contentType.includes("application/json")) {
@@ -57,7 +64,7 @@ async function callGeminiAPIWithRetry(
           (await response.text()).slice(0, 512) ||
           "AI request failed";
         const err = new Error(bodyText);
-        // @ts-expect-error
+        // @ts-expect-error -- Menambahkan properti status ke objek Error secara manual untuk penanganan API
         err.status = response.status;
         throw err;
       }
@@ -65,14 +72,14 @@ async function callGeminiAPIWithRetry(
       if (!responseBody) {
         // Unexpected empty response, treat as error so retry logic can run.
         const err = new Error("AI response was empty or not valid JSON");
-        // @ts-expect-error
+        // @ts-expect-error -- Menambahkan properti status ke objek Error secara manual untuk penanganan API
         err.status = response.status;
         throw err;
       }
 
       return responseBody?.data?.reply ?? "";
-    } catch (error: any) {
-      const status = error?.status ?? null;
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status ?? null;
       const shouldRetry =
         attempt < retries &&
         (isRetryableResponse(status) || isRetryableError(error));
