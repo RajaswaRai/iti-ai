@@ -220,3 +220,28 @@ export const approveUser = async (req: Request, res: Response): Promise<void> =>
         res.status(500).json({ success: false, error: "Gagal menyetujui akses." });
     }
 };
+
+export const getFeedbackList = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const feedbacks = await prisma.chatFeedback.findMany({
+            orderBy: { created_at: 'desc' }
+        });
+        res.status(200).json({ success: true, data: feedbacks });
+    } catch (error) {
+        console.error("Error getFeedbackList:", error);
+        res.status(500).json({ success: false, error: "Gagal mengambil data feedback." });
+    }
+};
+
+export const getAuditLogs = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const logs = await prisma.auditLog.findMany({
+            orderBy: { created_at: 'desc' },
+            include: { user: { select: { email: true, name: true } } }
+        });
+        res.status(200).json({ success: true, data: logs });
+    } catch (error) {
+        console.error("Error getAuditLogs:", error);
+        res.status(500).json({ success: false, error: "Gagal mengambil audit log." });
+    }
+};

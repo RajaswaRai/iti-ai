@@ -15,6 +15,7 @@ const chatLimiter = rateLimit({
 });
 
 router.post('/', chatLimiter, validateChat, handleChat);
+
 router.post('/feedback', handleFeedback);
 
 export default router;

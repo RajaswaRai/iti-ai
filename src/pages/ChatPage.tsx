@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { Bot, Trash2, Send, User, MessageSquare } from "lucide-react";
+import { Bot, Trash2, Send, User, MessageSquare, ThumbsUp, ThumbsDown, X } from "lucide-react";
 
 // Komponen yang diintegrasikan
 import Button from "../components/Button";
@@ -21,6 +21,8 @@ function ChatPage() {
   const [activeFeedback, setActiveFeedback] = useState<{ messageId: number; rating: number; userMessage: string; comment: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [activeFeedback, setActiveFeedback] = useState<{ messageId: number; rating: number; userMessage: string; comment: string } | null>(null);
+  const [submittedFeedbacks, setSubmittedFeedbacks] = useState<Record<number, number>>({});
 
   const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000/api";
 
@@ -52,6 +54,40 @@ function ChatPage() {
     maxTurns = 3
   ) => {
     return currentMessages.slice(-maxTurns * 2);
+  };
+
+  const openFeedbackForm = (messageId: number, rating: number) => {
+    // Find previous user message
+    const aiMsgIndex = messages.findIndex(m => m.id === messageId);
+    let userMsgText = "";
+    if (aiMsgIndex > 0 && messages[aiMsgIndex - 1].role === "user") {
+        userMsgText = messages[aiMsgIndex - 1].content;
+    }
+    setActiveFeedback({ messageId, rating, userMessage: userMsgText, comment: "" });
+  };
+
+  const cancelFeedback = () => setActiveFeedback(null);
+
+  const submitFeedback = async () => {
+    if (!activeFeedback) return;
+    try {
+      await fetch(`${SERVER_URL}/chat/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messageId: activeFeedback.messageId.toString(),
+          rating: activeFeedback.rating,
+          userMessage: activeFeedback.userMessage,
+          comment: activeFeedback.comment,
+        }),
+      });
+      setSubmittedFeedbacks(prev => ({ ...prev, [activeFeedback.messageId]: activeFeedback.rating }));
+      alert(activeFeedback.rating === 1 ? "Terima kasih atas feedback positifnya!" : "Terima kasih, ulasan Anda akan membantu kami berkembang.");
+    } catch (error) {
+      console.error("Gagal mengirim feedback", error);
+    } finally {
+      setActiveFeedback(null);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -218,52 +254,29 @@ function ChatPage() {
                     ) : (
                       <p className="whitespace-pre-wrap">{message.content}</p>
                     )}
-<<<<<<< HEAD
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', borderTop: message.role === 'ai' ? '1px solid rgba(0,0,0,0.05)' : 'none', paddingTop: message.role === 'ai' ? '8px' : '0' }}>
-                      <div className="message-time" style={{ margin: 0, fontSize: '0.75rem', opacity: 0.6 }}>
-                        {formatTime(message.timestamp)}
-                      </div>
-                      
-                      {message.role === "ai" && (
-                        <div className="message-feedback" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button 
-                              onClick={() => openFeedbackForm(message.id, 1)} 
-                              title="Jawaban bagus" 
-                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.1rem', opacity: 0.5, padding: '4px', borderRadius: '4px', transition: 'all 0.2s ease' }}
-                              onMouseOver={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.background = 'rgba(0,0,0,0.05)'; }}
-                              onMouseOut={(e) => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'transparent'; }}
-                            >👍</button>
-                            <button 
-                              onClick={() => openFeedbackForm(message.id, -1)} 
-                              title="Jawaban buruk" 
-                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.1rem', opacity: 0.5, padding: '4px', borderRadius: '4px', transition: 'all 0.2s ease' }}
-                              onMouseOver={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.background = 'rgba(0,0,0,0.05)'; }}
-                              onMouseOut={(e) => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'transparent'; }}
-                            >👎</button>
-                          </div>
-                          
-                          {activeFeedback?.messageId === message.id && (
-                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px', background: 'rgba(0,0,0,0.02)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.05)' }}>
-                                <textarea 
-                                  placeholder="Ketik komentar, keluhan, atau saran Anda di sini..." 
-                                  value={activeFeedback.comment}
-                                  onChange={(e) => setActiveFeedback({...activeFeedback, comment: e.target.value})}
-                                  style={{ padding: '8px', borderRadius: '4px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '0.9rem', resize: 'vertical', minHeight: '60px', fontFamily: 'inherit', outline: 'none' }}
-                                />
-                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                   <button onClick={cancelFeedback} style={{ padding: '6px 12px', cursor: 'pointer', background: 'transparent', border: '1px solid rgba(0,0,0,0.1)', borderRadius: '4px', color: '#555' }}>Batal</button>
-                                   <button onClick={submitFeedback} style={{ padding: '6px 12px', cursor: 'pointer', background: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}>Kirim Ulasan</button>
-                                </div>
-                             </div>
-                          )}
-                        </div>
-                      )}
-=======
                     <div className={`mt-2 text-[10px] font-medium ${message.role === 'user' ? 'text-neutral-400 text-right' : 'text-neutral-400 text-left'}`}>
                       {formatTime(message.timestamp)}
->>>>>>> frontend
                     </div>
+                    
+                    {/* Feedback Form */}
+                    {activeFeedback?.messageId === message.id && (
+                      <div className="mt-3 pt-3 border-t border-neutral-200/60 flex flex-col gap-2">
+                        <div className="flex items-center justify-between text-xs font-semibold text-neutral-600">
+                          <span>{activeFeedback.rating === 1 ? '👍 Apa yang Anda sukai?' : '👎 Apa yang bisa ditingkatkan?'}</span>
+                          <button onClick={cancelFeedback} className="text-neutral-400 hover:text-neutral-600"><X className="h-3 w-3" /></button>
+                        </div>
+                        <textarea
+                          value={activeFeedback.comment}
+                          onChange={(e) => setActiveFeedback({...activeFeedback, comment: e.target.value})}
+                          placeholder="Tambahkan komentar opsional..."
+                          className="w-full resize-none rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs outline-none focus:border-teal-500"
+                          rows={2}
+                        />
+                        <div className="flex justify-end">
+                          <Button onClick={submitFeedback} className="px-3! py-1.5! text-[10px]! h-auto!">Kirim</Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

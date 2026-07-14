@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Upload, UserCheck, CheckCircle2, FolderOpen, AlertCircle } from "lucide-react";
+import { LogOut, Upload, UserCheck, CheckCircle2, FolderOpen, AlertCircle, MessageSquareQuote, Activity } from "lucide-react";
 import { fetchWithAuth } from "../utils/api";
 import Card, { CardHeader } from "../components/Card";
 import Button from "../components/Button";
@@ -23,11 +23,34 @@ interface PendingUser {
   created_at: string;
 }
 
+interface FeedbackItem {
+  id: string;
+  message_id: string;
+  rating: number;
+  user_message: string | null;
+  comment: string | null;
+  created_at: string;
+}
+
+interface AuditLog {
+  id: string;
+  action: string;
+  resource: string | null;
+  details: string | null;
+  created_at: string;
+  user: {
+    email: string;
+    name: string;
+  };
+}
+
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000/api";
 
 export default function AdminDashboard() {
   const [docs, setDocs] = useState<DocumentItem[]>([]);
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
+  const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [notice, setNotice] = useState<{ tone: "error" | "success"; text: string } | null>(null);
@@ -57,9 +80,32 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchFeedbacks = async () => {
+    try {
+      const res = await fetchWithAuth(`${SERVER_URL}/admin/feedback`);
+      const result = await res.json();
+      if (result.success) setFeedbacks(result.data);
+    } catch (err: unknown) {
+      console.error(err);
+    }
+  };
+
+  const fetchAuditLogs = async () => {
+    if (userRole !== "SUPER_ADMIN") return;
+    try {
+      const res = await fetchWithAuth(`${SERVER_URL}/admin/audit`);
+      const result = await res.json();
+      if (result.success) setAuditLogs(result.data);
+    } catch (err: unknown) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchDocs();
     fetchPendingUsers();
+    fetchFeedbacks();
+    fetchAuditLogs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -269,6 +315,95 @@ export default function AdminDashboard() {
             )}
           </div>
         </Card>
+
+        {/* Feedback Section */}
+        <Card>
+          <CardHeader 
+            title="Ulasan & Feedback Pengguna" 
+            description={`${feedbacks.length} feedback terkumpul`} 
+          />
+          <div className="px-6 py-2">
+            {feedbacks.length === 0 ? (
+              <EmptyState icon={<MessageSquareQuote className="h-8 w-8 text-neutral-400" />} text="Belum ada ulasan atau feedback dari pengguna." />
+            ) : (
+              <Table>
+                <Thead>
+                  <Th>Rating</Th>
+                  <Th>Pesan Pengguna</Th>
+                  <Th>Komentar</Th>
+                  <Th>Waktu</Th>
+                </Thead>
+                <tbody>
+                  {feedbacks.map((item) => (
+                    <Tr key={item.id}>
+                      <Td className="text-xl">
+                        {item.rating === 1 ? '👍' : '👎'}
+                      </Td>
+                      <Td className="text-sm text-neutral-700 max-w-xs truncate" title={item.user_message || "-"}>
+                        {item.user_message || "-"}
+                      </Td>
+                      <Td className="text-sm text-neutral-600 max-w-xs truncate" title={item.comment || "-"}>
+                        {item.comment || "-"}
+                      </Td>
+                      <Td className="text-xs text-neutral-500 whitespace-nowrap">
+                        {new Date(item.created_at).toLocaleString("id-ID", {
+                          dateStyle: "short",
+                          timeStyle: "short"
+                        })}
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </div>
+        </Card>
+
+        {/* Audit Log Section for Super Admin */}
+        {userRole === "SUPER_ADMIN" && (
+          <Card>
+            <CardHeader 
+              title="Audit Log Sistem" 
+              description="Aktivitas dan perubahan penting dalam sistem" 
+            />
+            <div className="px-6 py-2">
+              {auditLogs.length === 0 ? (
+                <EmptyState icon={<Activity className="h-8 w-8 text-neutral-400" />} text="Belum ada aktivitas yang dicatat." />
+              ) : (
+                <Table>
+                  <Thead>
+                    <Th>Waktu</Th>
+                    <Th>Pengguna</Th>
+                    <Th>Aktivitas</Th>
+                    <Th>Sumber</Th>
+                  </Thead>
+                  <tbody>
+                    {auditLogs.map((log) => (
+                      <Tr key={log.id}>
+                        <Td className="text-xs text-neutral-500 whitespace-nowrap">
+                          {new Date(log.created_at).toLocaleString("id-ID", {
+                            dateStyle: "short",
+                            timeStyle: "short"
+                          })}
+                        </Td>
+                        <Td className="text-sm font-medium text-neutral-900">
+                          {log.user.name} <br/>
+                          <span className="text-xs text-neutral-500 font-normal">{log.user.email}</span>
+                        </Td>
+                        <Td className="text-sm text-neutral-700">
+                          {log.action}
+                        </Td>
+                        <Td className="text-sm text-neutral-600">
+                          {log.resource || "-"}
+                        </Td>
+                      </Tr>
+                    ))}
+                  </tbody>
+                </Table>
+              )}
+            </div>
+          </Card>
+        )}
       </main>
     </div>
   );

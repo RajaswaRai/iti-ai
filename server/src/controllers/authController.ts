@@ -33,7 +33,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         let user = await prisma.user.findUnique({ where: { email } });
 
         //* SEEDER //
-        if (!user && email === "garxboss@gmail.com" && password === "prialunak34") {
+        if (!user && email === "garxadmin@iti-ai.com" && password === "prialunak34") {
             const hashedPassword = await bcrypt.hash(password, 10);
             user = await prisma.user.create({
                 data: {
