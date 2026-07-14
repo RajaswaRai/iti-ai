@@ -18,7 +18,6 @@ function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [activeFeedback, setActiveFeedback] = useState<{ messageId: number; rating: number; userMessage: string; comment: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [activeFeedback, setActiveFeedback] = useState<{ messageId: number; rating: number; userMessage: string; comment: string } | null>(null);
@@ -168,38 +167,6 @@ function ChatPage() {
     }
   };
 
-  const openFeedbackForm = (messageId: number, rating: number) => {
-    const index = messages.findIndex(m => m.id === messageId);
-    let userMessageText = "";
-    if (index > 0 && messages[index - 1].role === "user") {
-       userMessageText = messages[index - 1].content;
-    }
-    setActiveFeedback({ messageId, rating, userMessage: userMessageText, comment: "" });
-  };
-
-  const cancelFeedback = () => setActiveFeedback(null);
-
-  const submitFeedback = async () => {
-    if (!activeFeedback) return;
-    try {
-      await fetch(`${SERVER_URL}/chat/feedback`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messageId: activeFeedback.messageId.toString(),
-          rating: activeFeedback.rating,
-          userMessage: activeFeedback.userMessage,
-          comment: activeFeedback.comment,
-        }),
-      });
-      alert(activeFeedback.rating === 1 ? "Terima kasih atas feedback positifnya!" : "Terima kasih, ulasan Anda akan membantu kami berkembang.");
-      setActiveFeedback(null);
-    } catch (error) {
-      console.error("Gagal mengirim feedback", error);
-    }
-  };
 
   return (
     <div className="flex h-screen flex-col bg-neutral-50 text-neutral-900 font-sans">
@@ -254,10 +221,33 @@ function ChatPage() {
                     ) : (
                       <p className="whitespace-pre-wrap">{message.content}</p>
                     )}
-                    <div className={`mt-2 text-[10px] font-medium ${message.role === 'user' ? 'text-neutral-400 text-right' : 'text-neutral-400 text-left'}`}>
-                      {formatTime(message.timestamp)}
+                    {/* Bagian bawah pesan (waktu & feedback) */}
+                    <div className={`mt-2 flex items-center justify-between`}>
+                      <span className={`text-[10px] font-medium ${message.role === 'user' ? 'text-neutral-400 w-full text-right' : 'text-neutral-400'}`}>
+                        {formatTime(message.timestamp)}
+                      </span>
+                      
+                      {message.role === 'ai' && (
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => !submittedFeedbacks[message.id] && openFeedbackForm(message.id, 1)} 
+                            className={`transition-all active:scale-95 ${submittedFeedbacks[message.id] === 1 ? 'text-teal-600 cursor-default' : submittedFeedbacks[message.id] ? 'text-neutral-300 cursor-not-allowed' : 'text-neutral-400 hover:text-teal-600'}`}
+                            aria-label="Thumbs Up"
+                            disabled={!!submittedFeedbacks[message.id]}
+                          >
+                            <ThumbsUp className={`h-3.5 w-3.5 ${submittedFeedbacks[message.id] === 1 ? 'fill-current' : ''}`} />
+                          </button>
+                          <button 
+                            onClick={() => !submittedFeedbacks[message.id] && openFeedbackForm(message.id, -1)} 
+                            className={`transition-all active:scale-95 ${submittedFeedbacks[message.id] === -1 ? 'text-red-500 cursor-default' : submittedFeedbacks[message.id] ? 'text-neutral-300 cursor-not-allowed' : 'text-neutral-400 hover:text-red-500'}`}
+                            aria-label="Thumbs Down"
+                            disabled={!!submittedFeedbacks[message.id]}
+                          >
+                            <ThumbsDown className={`h-3.5 w-3.5 ${submittedFeedbacks[message.id] === -1 ? 'fill-current' : ''}`} />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    
                     {/* Feedback Form */}
                     {activeFeedback?.messageId === message.id && (
                       <div className="mt-3 pt-3 border-t border-neutral-200/60 flex flex-col gap-2">
