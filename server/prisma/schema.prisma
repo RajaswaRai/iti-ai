@@ -25,6 +25,7 @@ model User {
 
   refresh_tokens  RefreshToken[]
   password_resets PasswordReset[]
+  audit_logs      AuditLog[]
 }
 
 model RefreshToken {
@@ -57,4 +58,24 @@ model DocumentKnowledge {
   chunk_hashes String[] // Array of Hash
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  user_id    String
+  action     String
+  resource   String?
+  details    String?  @db.Text
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model ChatFeedback {
+  id           String   @id @default(uuid())
+  message_id   String   @unique // ID pesan dari frontend
+  user_message String?  @db.Text
+  rating       Int      // 1 untuk Up, -1 untuk Down
+  comment      String?  @db.Text
+  created_at   DateTime @default(now())
 }

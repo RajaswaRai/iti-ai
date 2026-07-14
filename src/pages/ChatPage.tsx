@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { Bot, Trash2, Send, User, MessageSquare } from "lucide-react";
+import { Bot, Trash2, Send, User, MessageSquare, ThumbsUp, ThumbsDown, X } from "lucide-react";
 
 // Komponen yang diintegrasikan
 import Button from "../components/Button";
@@ -20,6 +20,8 @@ function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [activeFeedback, setActiveFeedback] = useState<{ messageId: number; rating: number; userMessage: string; comment: string } | null>(null);
+  const [submittedFeedbacks, setSubmittedFeedbacks] = useState<Record<number, number>>({});
 
   const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:5000/api";
 
@@ -51,6 +53,40 @@ function ChatPage() {
     maxTurns = 3
   ) => {
     return currentMessages.slice(-maxTurns * 2);
+  };
+
+  const openFeedbackForm = (messageId: number, rating: number) => {
+    // Find previous user message
+    const aiMsgIndex = messages.findIndex(m => m.id === messageId);
+    let userMsgText = "";
+    if (aiMsgIndex > 0 && messages[aiMsgIndex - 1].role === "user") {
+        userMsgText = messages[aiMsgIndex - 1].content;
+    }
+    setActiveFeedback({ messageId, rating, userMessage: userMsgText, comment: "" });
+  };
+
+  const cancelFeedback = () => setActiveFeedback(null);
+
+  const submitFeedback = async () => {
+    if (!activeFeedback) return;
+    try {
+      await fetch(`${SERVER_URL}/chat/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messageId: activeFeedback.messageId.toString(),
+          rating: activeFeedback.rating,
+          userMessage: activeFeedback.userMessage,
+          comment: activeFeedback.comment,
+        }),
+      });
+      setSubmittedFeedbacks(prev => ({ ...prev, [activeFeedback.messageId]: activeFeedback.rating }));
+      alert(activeFeedback.rating === 1 ? "Terima kasih atas feedback positifnya!" : "Terima kasih, ulasan Anda akan membantu kami berkembang.");
+    } catch (error) {
+      console.error("Gagal mengirim feedback", error);
+    } finally {
+      setActiveFeedback(null);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -184,9 +220,54 @@ function ChatPage() {
                     ) : (
                       <p className="whitespace-pre-wrap">{message.content}</p>
                     )}
-                    <div className={`mt-2 text-[10px] font-medium ${message.role === 'user' ? 'text-neutral-400 text-right' : 'text-neutral-400 text-left'}`}>
-                      {formatTime(message.timestamp)}
+                    
+                    {/* Bagian bawah pesan (waktu & feedback) */}
+                    <div className={`mt-2 flex items-center justify-between`}>
+                      <span className={`text-[10px] font-medium ${message.role === 'user' ? 'text-neutral-400 w-full text-right' : 'text-neutral-400'}`}>
+                        {formatTime(message.timestamp)}
+                      </span>
+                      
+                      {message.role === 'ai' && (
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => !submittedFeedbacks[message.id] && openFeedbackForm(message.id, 1)} 
+                            className={`transition-all active:scale-95 ${submittedFeedbacks[message.id] === 1 ? 'text-teal-600 cursor-default' : submittedFeedbacks[message.id] ? 'text-neutral-300 cursor-not-allowed' : 'text-neutral-400 hover:text-teal-600'}`}
+                            aria-label="Thumbs Up"
+                            disabled={!!submittedFeedbacks[message.id]}
+                          >
+                            <ThumbsUp className={`h-3.5 w-3.5 ${submittedFeedbacks[message.id] === 1 ? 'fill-current' : ''}`} />
+                          </button>
+                          <button 
+                            onClick={() => !submittedFeedbacks[message.id] && openFeedbackForm(message.id, -1)} 
+                            className={`transition-all active:scale-95 ${submittedFeedbacks[message.id] === -1 ? 'text-red-500 cursor-default' : submittedFeedbacks[message.id] ? 'text-neutral-300 cursor-not-allowed' : 'text-neutral-400 hover:text-red-500'}`}
+                            aria-label="Thumbs Down"
+                            disabled={!!submittedFeedbacks[message.id]}
+                          >
+                            <ThumbsDown className={`h-3.5 w-3.5 ${submittedFeedbacks[message.id] === -1 ? 'fill-current' : ''}`} />
+                          </button>
+                        </div>
+                      )}
                     </div>
+                    
+                    {/* Feedback Form */}
+                    {activeFeedback?.messageId === message.id && (
+                      <div className="mt-3 pt-3 border-t border-neutral-200/60 flex flex-col gap-2">
+                        <div className="flex items-center justify-between text-xs font-semibold text-neutral-600">
+                          <span>{activeFeedback.rating === 1 ? '👍 Apa yang Anda sukai?' : '👎 Apa yang bisa ditingkatkan?'}</span>
+                          <button onClick={cancelFeedback} className="text-neutral-400 hover:text-neutral-600"><X className="h-3 w-3" /></button>
+                        </div>
+                        <textarea
+                          value={activeFeedback.comment}
+                          onChange={(e) => setActiveFeedback({...activeFeedback, comment: e.target.value})}
+                          placeholder="Tambahkan komentar opsional..."
+                          className="w-full resize-none rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs outline-none focus:border-teal-500"
+                          rows={2}
+                        />
+                        <div className="flex justify-end">
+                          <Button onClick={submitFeedback} className="px-3! py-1.5! text-[10px]! h-auto!">Kirim</Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
